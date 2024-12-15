@@ -1,3 +1,23 @@
+const PARAMETROS = {
+  language: "es",
+  userName: "@YoSoloYoYmiPers",
+  ancestor: 6,
+  colors: {
+    col_post_01: "yellow",
+  },
+  buscar: {
+    post_elim_caret: `'button[data-testid="caret"]'`,
+    post_dele_caret: `'div[data-testid="Dropdown"]'`,
+  },
+  textToSearch: {
+    es: "Eliminar",
+    en: "Delete",
+  },
+  eliminPost: {
+    scrollNumber: 3,
+  },
+};
+
 function nextPhoto({ photoSecuential = 0, photoGridPos = 0 } = {}) {
   const elemToFind = `verticalGridItem-${photoSecuential}-profile-grid-${photoGridPos}`;
   const elemFinded = document
@@ -118,44 +138,160 @@ async function removePhotos({
   }
 }
 
-async function findUserCaretArray({
-  userName,
-  color = "yellow",
-  language,
-  ancestor,
-} = {}) {
+function listOfElementToSearch({ searchCase }) {
+  if (searchCase === 1) {
+    const elementsToSearch = document.querySelectorAll(
+      'button[data-testid="caret"]'
+    );
+    if (elementsToSearch) {
+      return elementsToSearch;
+    }
+  } else if (searchCase === 2) {
+    const elementsToSearch = document.querySelectorAll(
+      'div[data-testid="Dropdown"]'
+    );
+    if (elementsToSearch) {
+      return elementsToSearch;
+    }
+  } else if (searchCase === 3) {
+    const elementsToSearch = document.querySelectorAll(
+      'button[data-testid="confirmationSheetConfirm"]'
+    );
+    if (elementsToSearch) {
+      return elementsToSearch;
+    }
+  } else if (searchCase === 4) {
+    const elementsToSearch = document.querySelectorAll(
+      'div[data-testid="cellInnerDiv"]'
+    );
+    if (elementsToSearch) {
+      return elementsToSearch;
+    }
+  } else if (searchCase === 5) {
+    const elementsToSearch = document.querySelectorAll(
+      'div[data-testid="unretweetConfirm"]'
+    );
+    if (elementsToSearch) {
+      return elementsToSearch;
+    }
+  }
+
+  return null;
+}
+
+async function findUserCaretArray(
+  params = { language, userName, ancestor, color }
+) {
   let canContinue = false;
-  //debugger;
-  for (const d of document.querySelectorAll('button[data-testid="caret"]')) {
-    let sixAncestor = findParent({ node: d, parentNumber: ancestor });
-    let text = sixAncestor.textContent;
-    if (text) {
-      if (text.includes(userName)) {
-        console.log(text);
-        //console.log(d);
-        d.style.backgroundColor = color;
-        //debugger;
-        await ejecuteDelete({ userCaret: d, language });
-        await wait(1000);
+  const elementsCellInnerDiv = listOfElementToSearch({ searchCase: 4 });
+  if (!elementsCellInnerDiv) {
+    return canContinue;
+  }
+  // debugger;
+  try {
+    for (const CellInnerDiv of elementsCellInnerDiv) {
+      let text = CellInnerDiv.textContent;
+      if (text) {
+        if (text.includes(params.userName)) {
+          // Es un Post
+          console.log("User name is: ", text);
+          const elementsCaret = CellInnerDiv.querySelectorAll(
+            'button[data-testid="caret"]'
+          );
+          if (!elementsCaret) {
+            return canContinue;
+          }
+          elementsCaret[0].style.backgroundColor = params.color;
+          console.log(elementsCaret[0]);
+
+          await ejecuteDelete({
+            userCaret: elementsCaret[0],
+            language: params.language,
+          });
+          await wait(1000);
+        } else if (text.includes("Reposteaste")) {
+          // Puede ser Reposteaste
+          console.clear();
+          console.log(CellInnerDiv);
+          console.log("Reposteaste?: ", text);
+          const elementsButtonUnRetweet = CellInnerDiv.querySelectorAll(
+            'button[data-testid="unretweet"]'
+          );
+          if (!elementsButtonUnRetweet) {
+            return canContinue;
+          }
+          elementsButtonUnRetweet[0].style.backgroundColor = params.colors;
+          console.log(elementsButtonUnRetweet[0]);
+
+          canContinue = await ejecutaDeleteRetweets({
+            unRetweet: elementsButtonUnRetweet[0],
+            language: params.language,
+          });
+          await wait(1000);
+        }
+      } else {
+        // Si no pertenece quiero poner en 0 ese elemento.
+        console.clear();
+        console.log(CellInnerDiv);
+        console.log("no tiene text ");
       }
+      canContinue = true;
+    }
+  } catch (error) {
+    canContinue = false;
+    console.error(error);
+    // return canContinue;
+  }
+
+  return canContinue;
+}
+
+async function ejecutaDeleteRetweets(params = { unRetweet, language }) {
+  let canContinue = false;
+
+  try {
+    console.log(`Eliminando retweet`);
+    console.log(params.unRetweet);
+
+    params.unRetweet.click();
+    await wait(3000);
+
+    let elementsUnRetweetConfirm = listOfElementToSearch({ searchCase: 5 });
+    if (!elementsUnRetweetConfirm) {
+      return 0;
+    }
+    console.log(elementsUnRetweetConfirm);
+    for (const c of elementsUnRetweetConfirm) {
+      console.log(c);
+      c.style.backgroundColor = params.color;
+      c.click();
+      await wait(3000);
     }
     canContinue = true;
+  } catch (error) {
+    canContinue = false;
+    console.error(error);
   }
   return canContinue;
 }
 
-async function ejecuteDelete({ userCaret, language = "es" } = {}) {
-  if (language === "es") {
-    textToSearch = "Eliminar";
+async function ejecuteDelete(params = { userCaret, language }) {
+  if (params.language === "es") {
+    textToSearch = PARAMETROS.textToSearch.es;
   } else {
-    textToSearch = "Delete";
+    textToSearch = PARAMETROS.textToSearch.en;
   }
 
   //debugger;
-  userCaret.click();
+  params.userCaret.click();
   await wait(1000);
 
-  for (const c of document.querySelectorAll('div[data-testid="Dropdown"]')) {
+  let elementsToSearch = listOfElementToSearch({ searchCase: 2 });
+  if (!elementsToSearch) {
+    return 0;
+  }
+
+  for (const c of elementsToSearch) {
     //console.log(c);
     //debugger;
     const existingText =
@@ -164,59 +300,59 @@ async function ejecuteDelete({ userCaret, language = "es" } = {}) {
     if (existingText.toLowerCase() === textToSearch.toLowerCase()) {
       c.firstChild.click();
       await wait(1000);
-      for (const e of document.querySelectorAll(
-        'button[data-testid="confirmationSheetConfirm"]'
-      )) {
+      elementsToSearch = listOfElementToSearch({ searchCase: 3 });
+      if (!elementsToSearch) {
+        return 0;
+      }
+      for (const e of elementsToSearch) {
         //console.log(e);
         e.click();
       }
     }
   }
+
   await wait(2000);
 }
 
-async function eliminaPosts({ language, userName, ancestor } = {}) {
-  let canContinue = true;
-
-  while (canContinue) {
-    canContinue = await findUserCaretArray({ language, userName, ancestor });
-    // debugger;
-    window.scrollTo(0, document.body.scrollHeight);
-    console.log("---------------");
-    console.log("---scroll---");
-    console.log("---------------");
-    await wait(10000);
+function Confirmar({ confirmarCase }) {
+  let text = "";
+  if (confirmarCase === "Continuar") {
+    text = "¿Desea continuar?";
   }
-  return 1;
+  if (confirm(text) == true) {
+    return 1;
+  }
+  return 0;
 }
 
-async function removeRetweets({ language, userName, ancestor } = {}) {
+async function eliminaPosts(params = { language, userName, ancestor }) {
   let canContinue = true;
+  let counter = 0;
 
   while (canContinue) {
-    //canContinue = await findUserCaretArray({ language, userName, ancestor });
-    //debugger;
-    for (const d of document.querySelectorAll(
-      'button[data-testid="unretweet"]'
-    )) {
-      console.log(`Eliminando retweet ${d}`);
-      d.style.backgroundColor = "yellow";
-      //debugger;
-      d.click();
-      await wait(3000);
-      for (const c of document.querySelectorAll(
-        'div[data-testid="unretweetConfirm"]'
-      )) {
-        c.style.backgroundColor = "yellow";
-        c.click();
-        await wait(3000);
+    canContinue = await findUserCaretArray({
+      ...params,
+      colors: PARAMETROS.colors.col_post_01,
+    });
+    // return 0;
+    // debugger;
+    if (counter === PARAMETROS.eliminPost.scrollNumber) {
+      let wantContinue = Confirmar({ confirmarCase: "Continuar" });
+      if (wantContinue === 1) {
+        counter = 0;
+      } else {
+        canContinue = false;
+        location.reload();
+        return 1;
       }
     }
-    //window.scrollTo(0, document.body.scrollHeight);
+    window.scrollTo(0, document.body.scrollHeight);
     console.log("---------------");
-    console.log("---scroll---");
+    console.log("---scroll--- para counter --- ", counter);
     console.log("---------------");
-    //await wait(5000);
+    await wait(10000);
+
+    counter++;
   }
   return 1;
 }
@@ -228,17 +364,17 @@ async function main({ i = 1 }) {
   }
   if (i === 2) {
     await eliminaPosts({
-      language: "es",
-      userName: "@YoSoloYoYmiPers",
-      ancestor: 6,
+      language: PARAMETROS.language,
+      userName: PARAMETROS.userName,
+      ancestor: PARAMETROS.ancestor,
     });
   }
   if (i === 3) {
-    await removeRetweets({
-      language: "es",
-      userName: "@YoSoloYoYmiPers",
-      ancestor: 6,
-    });
+    // await removeRetweets({
+    //   language: PARAMETROS.language,
+    //   userName: PARAMETROS.userName,
+    //   ancestor: PARAMETROS.ancestor,
+    // });
   }
 }
 
