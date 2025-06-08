@@ -4,10 +4,12 @@ const PARAMETROS = {
   ancestor: 6,
   colors: {
     col_post_01: "yellow",
+    col_post_02: "red",
   },
   buscar: {
     post_elim_caret: `'button[data-testid="caret"]'`,
     post_dele_caret: `'div[data-testid="Dropdown"]'`,
+    post_to_retweet: `'button[data-testid="retweet"]'`, //Encontrar los que tienen data-testid="retweet"
   },
   textToSearch: {
     es: "Eliminar",
@@ -170,6 +172,14 @@ function listOfElementToSearch({ searchCase }) {
   } else if (searchCase === 5) {
     const elementsToSearch = document.querySelectorAll(
       'div[data-testid="unretweetConfirm"]'
+    );
+    if (elementsToSearch) {
+      return elementsToSearch;
+    }
+  } else if (searchCase === 6) {
+    //data-testid="retweetConfirm"
+    const elementsToSearch = document.querySelectorAll(
+      'div[data-testid="retweetConfirm"]'
     );
     if (elementsToSearch) {
       return elementsToSearch;
@@ -357,6 +367,120 @@ async function eliminaPosts(params = { language, userName, ancestor }) {
   return 1;
 }
 
+async function doRetweet(params = { language, userName, ancestor }) {
+  let canContinue = true;
+  let counter = 0;
+
+  while (canContinue) {
+    canContinue = await findUserCaretArrayToRetweet({
+      ...params,
+      colors: PARAMETROS.colors.col_post_02,
+    });
+    // return 0;
+    // debugger;
+    if (counter === PARAMETROS.eliminPost.scrollNumber) {
+      let wantContinue = Confirmar({ confirmarCase: "Continuar" });
+      if (wantContinue === 1) {
+        counter = 0;
+      } else {
+        canContinue = false;
+        location.reload();
+        return 1;
+      }
+    }
+    window.scrollTo(0, document.body.scrollHeight);
+    console.log("---------------");
+    console.log("---scroll--- para counter --- ", counter);
+    console.log("---------------");
+    await wait(10000);
+
+    counter++;
+  }
+  return 1;
+}
+
+async function findUserCaretArrayToRetweet(
+  params = { language, userName, ancestor, color }
+) {
+  let canContinue = false;
+  const elementsCellInnerDiv = listOfElementToSearch({ searchCase: 4 });
+  if (!elementsCellInnerDiv) {
+    return canContinue;
+  }
+  // debugger;
+  try {
+    for (const CellInnerDiv of elementsCellInnerDiv) {
+      let text = CellInnerDiv.textContent;
+      if (text) {
+        if (text.includes(params.userName)) {
+          // Es un Post
+          console.log("User name is: ", text);
+        } else if (text.includes("Reposteaste")) {
+          // Puede ser Reposteaste
+          console.clear();
+          console.log(CellInnerDiv);
+          console.log("Reposteaste?: ", text);
+          const elementsButtonDoRetweet = CellInnerDiv.querySelectorAll(
+            'button[data-testid="retweet"]'
+          );
+          if (!elementsButtonDoRetweet) {
+            return canContinue;
+          }
+          elementsButtonDoRetweet[0].style.backgroundColor = params.colors;
+          console.log(elementsButtonDoRetweet[0]);
+
+          canContinue = await ejecutaDoRetweets({
+            doRetweet: elementsButtonDoRetweet[0],
+            language: params.language,
+          });
+          await wait(1000);
+        }
+      } else {
+        // Si no pertenece quiero poner en 0 ese elemento.
+        console.clear();
+        console.log(CellInnerDiv);
+        console.log("no tiene text ");
+      }
+      canContinue = true;
+    }
+  } catch (error) {
+    canContinue = false;
+    console.error(error);
+    // return canContinue;
+  }
+
+  return canContinue;
+}
+
+async function ejecutaDoRetweets(params = { doRetweet, language }) {
+  let canContinue = false;
+
+  try {
+    console.log(`Ejecutando retweet`);
+    console.log(params.doRetweet);
+
+    params.doRetweet.click();
+    await wait(3000);
+
+    let elementsDoRetweetConfirm = listOfElementToSearch({ searchCase: 6 });
+    if (!elementsDoRetweetConfirm) {
+      return 0;
+    }
+    console.log(elementsDoRetweetConfirm);
+    for (const c of elementsDoRetweetConfirm) {
+      console.log(c);
+      c.style.backgroundColor = params.color;
+      c.click();
+      await wait(3000);
+    }
+    canContinue = true;
+  } catch (error) {
+    canContinue = false;
+    console.error(error);
+  }
+  return canContinue;
+}
+
 async function main({ i = 1 }) {
   if (i === 1) {
     //removePhotos();
@@ -375,6 +499,15 @@ async function main({ i = 1 }) {
     //   userName: PARAMETROS.userName,
     //   ancestor: PARAMETROS.ancestor,
     // });
+  }
+  if (i === 4) {
+    // Los que aparecen como reposts pero sin estarlo, lo que vamos a hacer es
+    // volver a hacer repost para luego correr el proceso normal.
+    await doRetweet({
+      language: PARAMETROS.language,
+      userName: PARAMETROS.userName,
+      ancestor: PARAMETROS.ancestor,
+    });
   }
 }
 
